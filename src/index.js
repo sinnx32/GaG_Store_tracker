@@ -4,17 +4,6 @@ const { fetchInStockItems, formatStockEmbed } = require('./stock');
 const { autoUpdateShop } = require('./autoShopUpdate');
 const { setShopChannel, addShopRole, removeShopRole, addItemRole, removeItemRole } = require('./configManager');
 const fs = require("fs");
-const http = require('http');
-
-const PORT = process.env.PORT || 3000;
-
-const server = http.createServer((req, res) => {
-  res.end('Hello from the bot server!');
-});
-
-server.listen(PORT, () => {
-  console.log(`Server is listening on port ${PORT}`);
-});
 
 const client = new Client({
     intents: [
