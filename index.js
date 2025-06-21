@@ -3,8 +3,9 @@ const express = require('express');        // Add this
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const { fetchInStockItems, formatStockEmbed } = require('./src/stock.js');
 const { autoUpdateShop } = require('./src/autoShopUpdate.js');
-const { setShopChannel, addShopRole, removeShopRole, addItemRole, removeItemRole } = require('./src/configManager');
+const { setShopChannel, addShopRole, removeShopRole, addItemRole, removeItemRole, setWeatherChannel } = require('./src/configManager');
 const fs = require("fs");
+const { autoUpdateWeather } = require('./src/weatherUpdate.js');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -68,10 +69,19 @@ client.on(Events.MessageCreate, async (message) => {
         case "config":
             const rawData = fs.readFileSync("config.json", "utf-8");
             message.reply(String(rawData));
+        case 'setweatherchannel':
+            if (!message.member.permissions.has('Administrator')) {
+              return message.reply('❌ You need administrator permission to do this.');
+            }
+            setWeatherChannel(message.channel.id);
+            message.reply(`✅ Weather updates will now post in <#${message.channel.id}>`);
+            break;
+              
     }
 });
 
 // Slash-based (/stock)
+/*
 client.on(Events.InteractionCreate, async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -87,10 +97,11 @@ client.on(Events.InteractionCreate, async interaction => {
         }
     }
 });
-
+*/
 client.login(process.env.TOKEN);
 
 client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
     autoUpdateShop(client); // 🔁 Auto shop updates start
+    autoUpdateWeather(client)
 });

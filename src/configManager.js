@@ -5,30 +5,42 @@ function getConfig() {
   return JSON.parse(fs.readFileSync(configPath, 'utf8'));
 }
 
+function saveConfig(updatedConfig) {
+  fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2));
+}
+
 function setShopChannel(id) {
   const config = getConfig();
   config.shopChannelId = id;
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  saveConfig(config);
+}
+
+function setWeatherChannel(id) {
+  const config = getConfig();
+  config.weatherChannelId = id;
+  saveConfig(config);
 }
 
 function addItemRole(itemName, roleId) {
   const config = getConfig();
   if (!config.itemRoleMap) config.itemRoleMap = {};
   config.itemRoleMap[itemName] = roleId;
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  saveConfig(config);
 }
 
 function removeItemRole(itemName) {
   const config = getConfig();
   if (config.itemRoleMap) {
     delete config.itemRoleMap[itemName];
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    saveConfig(config);
   }
 }
 
 module.exports = {
   getConfig,
   setShopChannel,
+  setWeatherChannel,
   addItemRole,
-  removeItemRole
+  removeItemRole,
+  setWeatherChannel
 };
