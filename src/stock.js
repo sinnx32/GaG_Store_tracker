@@ -1,27 +1,6 @@
 const https = require('https');
 const { EmbedBuilder } = require('discord.js');
 
-// Emoji map for items
-const emojiMap = {
-  Blueberry: '🫐',
-  Carrot: '🥕',
-  Strawberry: '🍓',
-  Tomato: '🍅',
-  Corn: '🌽',
-  Pumpkin: '🎃',
-  'Orange Tulip': '🌷',
-  Pepper: '🌶️',
-  'Cleaning Spray': '🧼',
-  Trowel: '🛠️',
-  'Watering Can': '💧',
-  'Recall Wrench': '🔧',
-  'Favorite Tool': '🧰',
-  'Harvest Tool': '🔪',
-  Egg: '🥚',
-  'Golden Egg': '🥚✨'
-};
-
-// Fetch and parse live stock from the site
 async function fetchInStockItems() {
   const url = 'https://www.gamersberg.com/grow-a-garden/stock';
 
@@ -34,10 +13,11 @@ async function fetchInStockItems() {
       });
 
       res.on('end', () => {
+        // Parse sections (update IDs if site changed)
         const stock = {
           seeds: parseSection(html, 'seed-stock'),
           gear: parseSection(html, 'gear-stock'),
-          eggs: parseSection(html, 'egg-stock')
+          eggs: parseSection(html, 'egg-stock'),
         };
         resolve(stock);
       });
@@ -48,36 +28,59 @@ async function fetchInStockItems() {
   });
 }
 
-// Parse individual stock section by id using regex
 function parseSection(html, sectionId) {
   const items = [];
 
-  // Capture the section div content
+  // This regex matches the div with id=sectionId and captures inner HTML
   const sectionRegex = new RegExp(
     `<div[^>]*id="${sectionId}"[^>]*>([\\s\\S]*?)<\\/div>\\s*<\\/div>`,
     'i'
   );
   const sectionMatch = html.match(sectionRegex);
-  if (!sectionMatch) return items;
+
+  if (!sectionMatch) {
+    console.log(`No section found for id: ${sectionId}`);
+    return items;
+  }
 
   const sectionHtml = sectionMatch[1];
 
-  // Regex to capture item name and quantity inside that section
+  // Match each item div with .item-name and .item-qty inside
   const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
 
   let match;
   while ((match = itemRegex.exec(sectionHtml)) !== null) {
     const name = match[1].trim();
-    const qty = match[2].trim().replace(/[^\d]/g, '');
-    if (name && qty) {
-      items.push({ name, stock: parseInt(qty) });
+    const qtyRaw = match[2].trim();
+    const qty = parseInt(qtyRaw.replace(/[^\d]/g, '')) || 0;
+    if (name && qty > 0) {
+      items.push({ name, stock: qty });
     }
   }
 
   return items;
 }
 
-// Format Discord embed from parsed stock data
+// Emoji mapping (optional)
+const emojiMap = {
+  Blueberry: '🫐',
+  Carrot: '🥕',
+  Strawberry: '🍓',
+  Tomato: '🍅',
+  Corn: '🌽',
+  Pumpkin: '🎃',
+  'Orange Tulip': '🌷',
+  Pepper: '🌶️',
+
+  'Cleaning Spray': '🧼',
+  Trowel: '🛠️',
+  'Watering Can': '💧',
+  'Recall Wrench': '🔧',
+  'Favorite Tool': '🧰',
+  'Harvest Tool': '🔪',
+};
+
+// Format embed for Discord
 function formatStockEmbed(data) {
   if (!data) {
     return new EmbedBuilder()
@@ -90,28 +93,21 @@ function formatStockEmbed(data) {
   const gear = data.gear || [];
   const eggs = data.eggs || [];
 
-  const seedsField = seeds.length > 0
-    ? seeds.map(item => `**x${item.stock}** ${emojiMap[item.name] || ''} ${item.name}`).join('\n')
-    : 'No stock';
-
-  const gearField = gear.length > 0
-    ? gear.map(item => `**x${item.stock}** ${emojiMap[item.name] || ''} ${item.name}`).join('\n')
-    : 'No stock';
-
-  const eggsField = eggs.length > 0
-    ? eggs.map(item => `**x${item.stock}** ${emojiMap[item.name] || ''} ${item.name}`).join('\n')
-    : 'No stock';
+  const formatItems = (items) =>
+    items.length
+      ? items.map(i => `**x${i.stock}** ${emojiMap[i.name] || ''} ${i.name}`).join('\n')
+      : 'No stock';
 
   return new EmbedBuilder()
-    .setTitle('🌱 Grow a Garden - Current Stock')
-    .setColor(0x57F287) // green color
+    .setTitle('🌱 Grow a Garden Stock')
+    .setColor(0x57F287)
     .addFields(
-      { name: 'Seeds Stock', value: seedsField, inline: true },
-      { name: 'Gear Stock', value: gearField, inline: true },
-      { name: 'Eggs Stock', value: eggsField, inline: true }
+      { name: 'Seeds', value: formatItems(seeds), inline: true },
+      { name: 'Gear', value: formatItems(gear), inline: true },
+      { name: 'Eggs', value: formatItems(eggs), inline: true }
     )
     .setThumbnail('https://cdn-icons-png.flaticon.com/512/4769/4769989.png')
-    .setFooter({ text: 'Grow a Garden Bot • Live data from gamersberg.com' });
+    .setFooter({ text: 'Grow a Garden Bot' });
 }
 
 module.exports = { fetchInStockItems, formatStockEmbed };
