@@ -1,49 +1,55 @@
 const https = require('https');
-const { JSDOM } = require('jsdom'); // You already likely have this, but see note below
-const { EmbedBuilder } = require('discord.js');
 
-// Manual fetch without axios
 async function fetchInStockItems() {
   const url = 'https://www.gamersberg.com/grow-a-garden/stock';
 
-  return new Promise((resolve, reject) => {
-    https.get(url, res => {
-      let data = '';
+  return new Promise((resolve) => {
+    https.get(url, (res) => {
+      let html = '';
 
-      res.on('data', chunk => (data += chunk));
-      res.on('end', () => {
-        try {
-          const dom = new JSDOM(data);
-          const document = dom.window.document;
-
-          const parseSection = (selector) => {
-            const items = [];
-            const elements = document.querySelectorAll(`${selector} .item`);
-            elements.forEach(el => {
-              const name = el.querySelector('.item-name')?.textContent.trim();
-              const qtyText = el.querySelector('.item-qty')?.textContent.trim().replace(/[^\d]/g, '');
-              if (name && qtyText) {
-                items.push({ name, stock: parseInt(qtyText) });
-              }
-            });
-            return items;
-          };
-
-          const stock = {
-            seeds: parseSection('#seed-stock'),
-            gear: parseSection('#gear-stock'),
-            eggs: parseSection('#egg-stock')
-          };
-
-          resolve(stock);
-        } catch (e) {
-          console.error('❌ Error parsing stock page:', e.message);
-          resolve(null);
-        }
+      res.on('data', (chunk) => {
+        html += chunk;
       });
-    }).on('error', err => {
-      console.error('❌ Failed to load stock page:', err.message);
+
+      res.on('end', () => {
+        const stock = {
+          seeds: parseSection(html, 'seed-stock'),
+          gear: parseSection(html, 'gear-stock'),
+          eggs: parseSection(html, 'egg-stock')
+        };
+        resolve(stock);
+      });
+    }).on('error', (err) => {
+      console.error('❌ Failed to fetch stock page:', err.message);
       resolve(null);
     });
   });
+}
+
+// Helper to extract items using regex and section IDs
+function parseSection(html, sectionId) {
+  const items = [];
+
+  const sectionRegex = new RegExp(
+    `<div[^>]*id="${sectionId}"[^>]*>([\\s\\S]*?)<\\/div>\\s*<\\/div>`,
+    'i'
+  );
+  const sectionMatch = html.match(sectionRegex);
+  if (!sectionMatch) return items;
+
+  const sectionHtml = sectionMatch[1];
+
+  // Match each item inside the section
+  const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
+
+  let match;
+  while ((match = itemRegex.exec(sectionHtml)) !== null) {
+    const name = match[1].trim();
+    const qty = match[2].trim().replace(/[^\d]/g, '');
+    if (name && qty) {
+      items.push({ name, stock: parseInt(qty) });
+    }
+  }
+
+  return items;
 }
