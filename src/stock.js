@@ -3,14 +3,14 @@ const { response } = require('express');
 
 // Optional: emoji mapping (customize as needed)
 const emojiMap = {
-  Blueberry: '🫐',
-  Carrot: '🥕',
-  Strawberry: '🍓',
-  Tomato: '🍅',
-  Corn: '🌽',
-  Pumpkin: '🎃',
-  'Orange Tulip': '🌷',
-  Pepper: '🌶️',
+  Blueberry: '<:Blueberry:1385688607938973797>',
+  Carrot: '<:Carrot:1385688465152151572>',
+  Strawberry: '<:Strawberry:1385688021185073193>',
+  Tomato: '<:Tomato:1385688518017159168>',
+  Corn: '<:Corn:1385688423037141052>',
+  Pumpkin: '<:Pumpkin:1385688130702540930>',
+  'Orange Tulip': '<:OrangeTulip:1385688216337649705>',
+  Pepper: '<:Pepper:1385688232821522532>',
 
   'Cleaning Spray': '🧼',
   Trowel: '🛠️',
