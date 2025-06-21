@@ -1,8 +1,8 @@
 require('dotenv').config();
 const express = require('express');        // Add this
 const { Client, GatewayIntentBits, Events } = require('discord.js');
-const { fetchInStockItems, formatStockEmbed } = require('./src/stock');
-const { autoUpdateShop } = require('./src/autoShopUpdate');
+const { fetchInStockItems, formatStockEmbed } = require('./src/stock.js');
+const { autoUpdateShop } = require('./src/autoShopUpdate.js');
 const { setShopChannel, addShopRole, removeShopRole, addItemRole, removeItemRole } = require('./src/configManager');
 const fs = require("fs");
 const client = new Client({
