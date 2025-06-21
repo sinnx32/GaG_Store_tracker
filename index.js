@@ -5,7 +5,6 @@ const { fetchInStockItems, formatStockEmbed } = require('./src/stock');
 const { autoUpdateShop } = require('./src/autoShopUpdate');
 const { setShopChannel, addShopRole, removeShopRole, addItemRole, removeItemRole } = require('./src/configManager');
 const fs = require("fs");
-
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -21,7 +20,7 @@ app.get('/', (req, res) => {
     res.send('Bot is running!');
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 9090;
 app.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
 });

@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
+const { response } = require('express');
 
 // Optional: emoji mapping (customize as needed)
 const emojiMap = {
@@ -21,8 +22,8 @@ const emojiMap = {
 
 // Fetch function
 async function fetchInStockItems() {
-  const url = 'https://growagardenapi.vercel.app/api/stock/GetStock';
-
+  //const url = 'https://growagardenapi.vercel.app/api/stock/GetStock';
+  const url = "http://localhost:3000/api/stock/GetStock";
   try {
     const response = await fetch(url);
     const data = await response.json();
@@ -46,6 +47,7 @@ async function fetchInStockItems() {
 
   } catch (err) {
     console.error("Failed to fetch stock:", err);
+    console.error(response)
     return null;
   }
 }
