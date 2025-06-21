@@ -1,5 +1,6 @@
 const https = require('https');
 
+// Fetch stock HTML and parse items
 async function fetchInStockItems() {
   const url = 'https://www.gamersberg.com/grow-a-garden/stock';
 
@@ -12,12 +13,13 @@ async function fetchInStockItems() {
       });
 
       res.on('end', () => {
-        // Parse the HTML and extract stock info
+        // Parse each section by id
         const stock = {
           seeds: parseSection(html, 'seed-stock'),
           gear: parseSection(html, 'gear-stock'),
           eggs: parseSection(html, 'egg-stock')
         };
+        console.log('Parsed stock:', stock); // DEBUG log parsed stock
         resolve(stock);
       });
 
@@ -28,17 +30,22 @@ async function fetchInStockItems() {
   });
 }
 
+// Parse a section from HTML by ID and extract items with name and stock quantity
 function parseSection(html, sectionId) {
   const items = [];
-  
-  // Adjust regex to match the website's current HTML structure
+
+  // Match the div with the specific id
   const sectionRegex = new RegExp(`<div[^>]+id="${sectionId}"[^>]*>([\\s\\S]*?)<\\/div>`, 'i');
   const sectionMatch = html.match(sectionRegex);
-  if (!sectionMatch) return items;
+
+  if (!sectionMatch) {
+    console.log(`❌ Section ID not found: ${sectionId}`); // Debug log if section missing
+    return items; // return empty list if not found
+  }
 
   const sectionHtml = sectionMatch[1];
 
-  // This regex captures each item block inside the section
+  // Match each item div and capture name and quantity
   const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
 
   let match;
@@ -51,9 +58,11 @@ function parseSection(html, sectionId) {
     }
   }
 
+  console.log(`Parsed ${items.length} items from section: ${sectionId}`); // Debug parsed count
   return items;
 }
 
+// Embed formatting for Discord response (your existing code)
 const { EmbedBuilder } = require('discord.js');
 
 const emojiMap = {
@@ -82,27 +91,32 @@ function formatStockEmbed(data) {
       .setColor('Red');
   }
 
-  const seeds = data.seeds.length ? data.seeds : [];
-  const gear = data.gear.length ? data.gear : [];
-  const eggs = data.eggs.length ? data.eggs : [];
+  const seeds = data.seeds || [];
+  const gear = data.gear || [];
+  const eggs = data.eggs || [];
 
-  const formatItems = (items) => {
-    if (!items.length) return 'No stock';
-    return items.map(i => `**x${i.stock}** ${emojiMap[i.name] || ''} ${i.name}`).join('\n');
-  };
+  const seedsField = seeds.length
+    ? seeds.map(item => `**x${item.stock}** ${emojiMap[item.name] || ''} ${item.name}`).join('\n')
+    : 'No stock';
 
-  const embed = new EmbedBuilder()
-    .setTitle('🌱 Grow a Garden Stock')
+  const gearField = gear.length
+    ? gear.map(item => `**x${item.stock}** ${emojiMap[item.name] || ''} ${item.name}`).join('\n')
+    : 'No stock';
+
+  const eggsField = eggs.length
+    ? eggs.map(item => `**x${item.stock}** 🥚 ${item.name}`).join('\n')
+    : 'No stock';
+
+  return new EmbedBuilder()
+    .setTitle('Grow a Garden Stock')
     .setColor(0x57F287)
     .addFields(
-      { name: 'Seeds Stock', value: formatItems(seeds), inline: true },
-      { name: 'Gear Stock', value: formatItems(gear), inline: true },
-      { name: 'Eggs Stock', value: formatItems(eggs), inline: true }
+      { name: '🌱 Seeds Stock', value: seedsField, inline: true },
+      { name: '⚙️ Gear Stock', value: gearField, inline: true },
+      { name: '🥚 Eggs Stock', value: eggsField, inline: true }
     )
     .setThumbnail('https://cdn-icons-png.flaticon.com/512/4769/4769989.png')
     .setFooter({ text: 'Grow a Garden Bot' });
-
-  return embed;
 }
 
 module.exports = { fetchInStockItems, formatStockEmbed };
