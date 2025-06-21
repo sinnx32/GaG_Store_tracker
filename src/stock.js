@@ -1,71 +1,6 @@
-const https = require('https');
+const fetch = require('node-fetch'); // we'll use this for HTTP requests
 const { EmbedBuilder } = require('discord.js');
 
-async function fetchInStockItems() {
-  const url = 'https://www.gamersberg.com/grow-a-garden/stock';
-
-  return new Promise((resolve) => {
-    https.get(url, (res) => {
-      let html = '';
-
-      res.on('data', (chunk) => {
-        html += chunk;
-      });
-
-      res.on('end', () => {
-        // Extract all stock sections by looking for section headers and items
-        const stock = parseStockSections(html);
-        resolve(stock);
-      });
-    }).on('error', (err) => {
-      console.error('❌ Failed to fetch stock page:', err.message);
-      resolve(null);
-    });
-  });
-}
-
-// Parse stock sections by looking for <h3> or similar headers, then items below
-function parseStockSections(html) {
-  const stock = {};
-
-  // Regex to match each stock section block: section header + item list
-  // We look for something like: <h3>Seeds</h3> ... <div class="item">...</div>
-  const sectionRegex = /<h3[^>]*>([^<]+)<\/h3>\s*<div class="items">([\s\S]*?)<\/div>/g;
-
-  let match;
-  while ((match = sectionRegex.exec(html)) !== null) {
-    const sectionNameRaw = match[1].trim().toLowerCase(); // e.g. "Seeds", "Gear"
-    const sectionItemsHtml = match[2];
-
-    // Normalize section names as keys
-    let sectionKey = null;
-    if (sectionNameRaw.includes('seed')) sectionKey = 'seeds';
-    else if (sectionNameRaw.includes('gear')) sectionKey = 'gear';
-    else if (sectionNameRaw.includes('egg')) sectionKey = 'eggs';
-    else sectionKey = sectionNameRaw.replace(/\s/g, '');
-
-    // Extract items inside this section
-    const items = [];
-    const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
-
-    let itemMatch;
-    while ((itemMatch = itemRegex.exec(sectionItemsHtml)) !== null) {
-      const name = itemMatch[1].trim();
-      const qtyRaw = itemMatch[2].trim();
-      const qty = parseInt(qtyRaw.replace(/[^\d]/g, '')) || 0;
-
-      if (qty > 0) {
-        items.push({ name, stock: qty });
-      }
-    }
-
-    stock[sectionKey] = items;
-  }
-
-  return stock;
-}
-
-// Emoji mapping (optional)
 const emojiMap = {
   Blueberry: '🫐',
   Carrot: '🥕',
@@ -75,7 +10,6 @@ const emojiMap = {
   Pumpkin: '🎃',
   'Orange Tulip': '🌷',
   Pepper: '🌶️',
-
   'Cleaning Spray': '🧼',
   Trowel: '🛠️',
   'Watering Can': '💧',
@@ -84,7 +18,37 @@ const emojiMap = {
   'Harvest Tool': '🔪',
 };
 
-// Format embed for Discord
+async function fetchInStockItems() {
+  const url = 'https://growagardenapi.vercel.app/api/stock/GetStock';
+
+  try {
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (!json || !json.Data) return null;
+
+    const stock = {};
+
+    // We expect Data to have categories with arrays of items
+    for (const category in json.Data) {
+      if (Array.isArray(json.Data[category])) {
+        const items = json.Data[category]
+          .filter(item => parseInt(item.stock) > 0)
+          .map(item => ({ name: item.name, stock: parseInt(item.stock) }));
+        if (items.length > 0) {
+          stock[category.toLowerCase()] = items;
+        }
+      }
+    }
+
+    return stock;
+
+  } catch (err) {
+    console.error('❌ Failed to fetch stock from API:', err);
+    return null;
+  }
+}
+
 function formatStockEmbed(data) {
   if (!data) {
     return new EmbedBuilder()
