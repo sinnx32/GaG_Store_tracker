@@ -13,12 +13,8 @@ async function fetchInStockItems() {
       });
 
       res.on('end', () => {
-        // Parse sections (update IDs if site changed)
-        const stock = {
-          seeds: parseSection(html, 'seed-stock'),
-          gear: parseSection(html, 'gear-stock'),
-          eggs: parseSection(html, 'egg-stock'),
-        };
+        // Extract all stock sections by looking for section headers and items
+        const stock = parseStockSections(html);
         resolve(stock);
       });
     }).on('error', (err) => {
@@ -28,37 +24,45 @@ async function fetchInStockItems() {
   });
 }
 
-function parseSection(html, sectionId) {
-  const items = [];
+// Parse stock sections by looking for <h3> or similar headers, then items below
+function parseStockSections(html) {
+  const stock = {};
 
-  // This regex matches the div with id=sectionId and captures inner HTML
-  const sectionRegex = new RegExp(
-    `<div[^>]*id="${sectionId}"[^>]*>([\\s\\S]*?)<\\/div>\\s*<\\/div>`,
-    'i'
-  );
-  const sectionMatch = html.match(sectionRegex);
-
-  if (!sectionMatch) {
-    console.log(`No section found for id: ${sectionId}`);
-    return items;
-  }
-
-  const sectionHtml = sectionMatch[1];
-
-  // Match each item div with .item-name and .item-qty inside
-  const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
+  // Regex to match each stock section block: section header + item list
+  // We look for something like: <h3>Seeds</h3> ... <div class="item">...</div>
+  const sectionRegex = /<h3[^>]*>([^<]+)<\/h3>\s*<div class="items">([\s\S]*?)<\/div>/g;
 
   let match;
-  while ((match = itemRegex.exec(sectionHtml)) !== null) {
-    const name = match[1].trim();
-    const qtyRaw = match[2].trim();
-    const qty = parseInt(qtyRaw.replace(/[^\d]/g, '')) || 0;
-    if (name && qty > 0) {
-      items.push({ name, stock: qty });
+  while ((match = sectionRegex.exec(html)) !== null) {
+    const sectionNameRaw = match[1].trim().toLowerCase(); // e.g. "Seeds", "Gear"
+    const sectionItemsHtml = match[2];
+
+    // Normalize section names as keys
+    let sectionKey = null;
+    if (sectionNameRaw.includes('seed')) sectionKey = 'seeds';
+    else if (sectionNameRaw.includes('gear')) sectionKey = 'gear';
+    else if (sectionNameRaw.includes('egg')) sectionKey = 'eggs';
+    else sectionKey = sectionNameRaw.replace(/\s/g, '');
+
+    // Extract items inside this section
+    const items = [];
+    const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
+
+    let itemMatch;
+    while ((itemMatch = itemRegex.exec(sectionItemsHtml)) !== null) {
+      const name = itemMatch[1].trim();
+      const qtyRaw = itemMatch[2].trim();
+      const qty = parseInt(qtyRaw.replace(/[^\d]/g, '')) || 0;
+
+      if (qty > 0) {
+        items.push({ name, stock: qty });
+      }
     }
+
+    stock[sectionKey] = items;
   }
 
-  return items;
+  return stock;
 }
 
 // Emoji mapping (optional)
