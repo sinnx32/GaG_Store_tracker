@@ -1,4 +1,60 @@
-const fetch = require('node-fetch'); // If you can't npm install, you can replace with https manually (let me know)
+const https = require('https');
+
+async function fetchInStockItems() {
+  const url = 'https://www.gamersberg.com/grow-a-garden/stock';
+
+  return new Promise((resolve) => {
+    https.get(url, (res) => {
+      let html = '';
+
+      res.on('data', (chunk) => {
+        html += chunk;
+      });
+
+      res.on('end', () => {
+        // Parse the HTML and extract stock info
+        const stock = {
+          seeds: parseSection(html, 'seed-stock'),
+          gear: parseSection(html, 'gear-stock'),
+          eggs: parseSection(html, 'egg-stock')
+        };
+        resolve(stock);
+      });
+
+    }).on('error', (err) => {
+      console.error('❌ Failed to fetch stock page:', err.message);
+      resolve(null);
+    });
+  });
+}
+
+function parseSection(html, sectionId) {
+  const items = [];
+  
+  // Adjust regex to match the website's current HTML structure
+  const sectionRegex = new RegExp(`<div[^>]+id="${sectionId}"[^>]*>([\\s\\S]*?)<\\/div>`, 'i');
+  const sectionMatch = html.match(sectionRegex);
+  if (!sectionMatch) return items;
+
+  const sectionHtml = sectionMatch[1];
+
+  // This regex captures each item block inside the section
+  const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
+
+  let match;
+  while ((match = itemRegex.exec(sectionHtml)) !== null) {
+    const name = match[1].trim();
+    const qtyText = match[2].trim();
+    const qty = parseInt(qtyText.replace(/[^\d]/g, ''), 10);
+    if (name && qty && qty > 0) {
+      items.push({ name, stock: qty });
+    }
+  }
+
+  return items;
+}
+
+const { EmbedBuilder } = require('discord.js');
 
 const emojiMap = {
   Blueberry: '🫐',
@@ -9,6 +65,7 @@ const emojiMap = {
   Pumpkin: '🎃',
   'Orange Tulip': '🌷',
   Pepper: '🌶️',
+
   'Cleaning Spray': '🧼',
   Trowel: '🛠️',
   'Watering Can': '💧',
@@ -17,60 +74,33 @@ const emojiMap = {
   'Harvest Tool': '🔪'
 };
 
-async function fetchInStockItems() {
-  const url = 'https://growagardenapi.vercel.app/api/stock/GetStock';
-
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-
-    // Data.Data has keys seeds, gear, eggs each an array of {name, stock}
-    const result = {};
-    for (const category of ['seeds', 'gear', 'eggs']) {
-      if (data.Data[category]) {
-        result[category] = data.Data[category]
-          .filter(item => item.stock > 0)
-          .map(item => ({ name: item.name, stock: item.stock }));
-      } else {
-        result[category] = [];
-      }
-    }
-    return result;
-
-  } catch (err) {
-    console.error('❌ Failed to fetch stock from API:', err);
-    return null;
-  }
-}
-
-const { EmbedBuilder } = require('discord.js');
-
-function formatStockEmbed(stockData) {
-  if (!stockData) {
+function formatStockEmbed(data) {
+  if (!data) {
     return new EmbedBuilder()
       .setTitle('Grow a Garden Stock')
       .setDescription('⚠️ Failed to fetch stock data.')
       .setColor('Red');
   }
 
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const seeds = data.seeds.length ? data.seeds : [];
+  const gear = data.gear.length ? data.gear : [];
+  const eggs = data.eggs.length ? data.eggs : [];
 
-  const formatItems = items =>
-    items.length
-      ? items.map(i => `**x${i.stock}** ${emojiMap[i.name] || ''} ${i.name}`).join('\n')
-      : 'No stock';
+  const formatItems = (items) => {
+    if (!items.length) return 'No stock';
+    return items.map(i => `**x${i.stock}** ${emojiMap[i.name] || ''} ${i.name}`).join('\n');
+  };
 
   const embed = new EmbedBuilder()
-    .setTitle(`Grow a Garden Stock (Updated: ${timeStr})`)
-    .setColor(0x57f287) // green
+    .setTitle('🌱 Grow a Garden Stock')
+    .setColor(0x57F287)
     .addFields(
-      { name: '🌱 Seeds', value: formatItems(stockData.seeds), inline: true },
-      { name: '⚙️ Gear', value: formatItems(stockData.gear), inline: true },
-      { name: '🥚 Eggs', value: formatItems(stockData.eggs), inline: true }
+      { name: 'Seeds Stock', value: formatItems(seeds), inline: true },
+      { name: 'Gear Stock', value: formatItems(gear), inline: true },
+      { name: 'Eggs Stock', value: formatItems(eggs), inline: true }
     )
-    .setFooter({ text: 'Grow a Garden Bot' })
-    .setThumbnail('https://cdn-icons-png.flaticon.com/512/4769/4769989.png');
+    .setThumbnail('https://cdn-icons-png.flaticon.com/512/4769/4769989.png')
+    .setFooter({ text: 'Grow a Garden Bot' });
 
   return embed;
 }
