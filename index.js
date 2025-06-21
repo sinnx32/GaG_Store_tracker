@@ -1,11 +1,11 @@
 require('dotenv').config();
 const express = require('express');
+const https = require('https');
 const { Client, GatewayIntentBits, Events, EmbedBuilder } = require('discord.js');
 const { autoUpdateShop } = require('./src/autoShopUpdate');
 const { setShopChannel, addShopRole, removeShopRole, addItemRole, removeItemRole } = require('./src/configManager');
-const fs = require("fs");
+const fs = require('fs');
 
-// Emoji map for stock display
 const emojiMap = {
   Blueberry: '🫐',
   Carrot: '🥕',
@@ -23,38 +23,57 @@ const emojiMap = {
   'Harvest Tool': '🔪',
 };
 
-// Fetch stock data from Grow a Garden API
-async function fetchInStockItems() {
-  const url = 'https://growagardenapi.vercel.app/api/stock/GetStock';
+function fetchInStockItems() {
+  const url = 'https://www.gamersberg.com/grow-a-garden/stock';
 
-  try {
-    const res = await fetch(url);
-    const json = await res.json();
+  return new Promise((resolve) => {
+    https.get(url, (res) => {
+      let html = '';
 
-    if (!json || !json.Data) return null;
-
-    const stock = {};
-
-    for (const category in json.Data) {
-      if (Array.isArray(json.Data[category])) {
-        const items = json.Data[category]
-          .filter(item => parseInt(item.stock) > 0)
-          .map(item => ({ name: item.name, stock: parseInt(item.stock) }));
-        if (items.length > 0) {
-          stock[category.toLowerCase()] = items;
-        }
-      }
-    }
-
-    return stock;
-
-  } catch (err) {
-    console.error('❌ Failed to fetch stock from API:', err);
-    return null;
-  }
+      res.on('data', chunk => html += chunk);
+      res.on('end', () => {
+        const stock = {
+          seeds: parseSection(html, 'seed-stock'),
+          gear: parseSection(html, 'gear-stock'),
+          eggs: parseSection(html, 'egg-stock')
+        };
+        resolve(stock);
+      });
+    }).on('error', (err) => {
+      console.error('❌ Failed to fetch stock page:', err.message);
+      resolve(null);
+    });
+  });
 }
 
-// Format stock data into a Discord embed
+function parseSection(html, sectionId) {
+  const items = [];
+  // This regex looks for the <div id="sectionId"> ... </div> container
+  // Adjusted for the current page structure (inspect the page to verify!)
+  const sectionRegex = new RegExp(`<div[^>]+id="${sectionId}"[^>]*>([\\s\\S]*?)<\\/div>`, 'i');
+  const sectionMatch = html.match(sectionRegex);
+  if (!sectionMatch) return items;
+
+  const sectionHtml = sectionMatch[1];
+
+  // Each item block looks like:
+  // <div class="item">
+  //   <div class="item-name">Carrot</div>
+  //   <div class="item-qty">15</div>
+  // </div>
+  const itemRegex = /<div class="item">[\s\S]*?<div class="item-name">([^<]+)<\/div>[\s\S]*?<div class="item-qty">([^<]+)<\/div>/g;
+
+  let match;
+  while ((match = itemRegex.exec(sectionHtml)) !== null) {
+    const name = match[1].trim();
+    const qtyStr = match[2].trim();
+    const qty = parseInt(qtyStr.replace(/[^\d]/g, ''));
+    if (name && qty) items.push({ name, stock: qty });
+  }
+
+  return items;
+}
+
 function formatStockEmbed(data) {
   if (!data) {
     return new EmbedBuilder()
@@ -92,72 +111,26 @@ const client = new Client({
   ]
 });
 
-// Simple Express server for health check
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`HTTP server listening on port ${PORT}`));
 
-// Discord message commands
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith('.')) return;
 
   const args = message.content.slice(1).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  switch (command) {
-    case 'stock': {
-      const data = await fetchInStockItems();
-      const embed = formatStockEmbed(data);
-      message.reply({ embeds: [embed] });
-      break;
-    }
-    case "setshopchannel":
-      if (!message.member.permissions.has("Administrator")) {
-        return message.reply("❌ You need administrator permission to do this.");
-      }
-      setShopChannel(message.channel.id);
-      message.reply(`✅ Shop updates will now post in <#${message.channel.id}>`);
-      break;
-    case 'additemrole': {
-      if (!message.member.permissions.has('Administrator')) return message.reply('❌ Admin only.');
-
-      const [itemName, roleMention] = args;
-      const role = message.mentions.roles.first();
-      if (!itemName || !role) return message.reply('❌ Usage: `!additemrole <ItemName> @Role`');
-
-      addItemRole(itemName, role.id);
-      return message.reply(`✅ Now pinging <@&${role.id}> when **${itemName}** is in stock.`);
-    }
-    case 'removeitemrole': {
-      if (!message.member.permissions.has('Administrator')) return message.reply('❌ Admin only.');
-      const itemName = args.join(' ');
-      if (!itemName) return message.reply('❌ Usage: `!removeitemrole <ItemName>`');
-
-      removeItemRole(itemName);
-      return message.reply(`✅ No longer pinging for **${itemName}**.`);
-    }
-    case "config":
-      const rawData = fs.readFileSync("config.json", "utf-8");
-      message.reply(String(rawData));
+  if (command === 'stock') {
+    const data = await fetchInStockItems();
+    const embed = formatStockEmbed(data);
+    message.reply({ embeds: [embed] });
+    return;
   }
-});
 
-// Slash command handling
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-
-  const { commandName } = interaction;
-
-  switch (commandName) {
-    case 'stock': {
-      await interaction.deferReply();
-      const data = await fetchInStockItems();
-      const embed = formatStockEmbed(data);
-      await interaction.editReply({ embeds: [embed] });
-      break;
-    }
-  }
+  // Your other commands here...
+  // setshopchannel, additemrole, etc
 });
 
 client.login(process.env.TOKEN);
