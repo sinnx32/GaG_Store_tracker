@@ -1,4 +1,5 @@
 const https = require('https');
+const { EmbedBuilder } = require('discord.js');
 
 async function fetchInStockItems() {
   const url = 'https://www.gamersberg.com/grow-a-garden/stock';
@@ -59,4 +60,20 @@ function parseSection(html, className) {
   return items;
 }
 
-module.exports = { fetchInStockItems };
+function formatStockEmbed(stock) {
+  const embed = new EmbedBuilder()
+    .setTitle('Current Stock')
+    .setColor(0x00ff00);
+
+  for (const section in stock) {
+    const items = stock[section]
+      .map(item => `${item.name}: ${item.stock}`)
+      .join('\n') || 'No items';
+
+    embed.addFields({ name: section.charAt(0).toUpperCase() + section.slice(1), value: items });
+  }
+
+  return embed;
+}
+
+module.exports = { fetchInStockItems, formatStockEmbed };
